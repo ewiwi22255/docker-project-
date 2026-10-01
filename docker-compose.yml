@@ -1,0 +1,67 @@
+# ERP 部署包：直接下載 GitHub Container Registry 上已建好的映像，不需要原始碼。
+#
+#   docker compose --env-file .env.docker up -d
+#   瀏覽器開 http://<這台電腦的 IP>:${ERP_HTTP_PORT:-80}
+#
+# 映像由 https://github.com/ewiwi22255/docker-project-test 自動建置並發布。
+
+name: erp
+
+x-backend: &backend
+  image: ${ERP_BACKEND_IMAGE:-ghcr.io/ewiwi22255/docker-project-test-backend:latest}
+  env_file:
+    - path: .env.docker
+      required: false
+  environment:
+    ERP_DB_PATH: /app/data/erp.db
+    TZ: Asia/Taipei
+  volumes:
+    - erp-data:/app/data
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *backend
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # 舊版介面；web 的 nginx 設定會轉送 /legacy/ 到這裡，少了它 nginx 無法啟動
+  legacy:
+    <<: *backend
+    command:
+      - streamlit
+      - run
+      - app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.baseUrlPath=legacy
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/legacy/_stcore/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  web:
+    image: ${ERP_WEB_IMAGE:-ghcr.io/ewiwi22255/docker-project-test-web:latest}
+    ports:
+      - "${ERP_HTTP_PORT:-80}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+      legacy:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  erp-data:

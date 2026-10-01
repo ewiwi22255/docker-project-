@@ -1,0 +1,2 @@
+# Shell 腳本在 Linux 執行，必須是 LF 換行
+*.sh text eol=lf

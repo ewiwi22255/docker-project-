@@ -1,0 +1,21 @@
+// GitHub Codespaces：在雲端機器上下載映像並啟動 ERP。
+// 建立 Codespace 後會自動執行 start.sh，完成時 8080 埠會自動轉發。
+{
+  "name": "ERP (Docker)",
+  // 固定 Ubuntu 22.04：base:ubuntu 會跟著最新版走，docker-in-docker 不一定支援
+  "image": "mcr.microsoft.com/devcontainers/base:jammy",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "containerEnv": {
+    "ERP_HTTP_PORT": "8080"
+  },
+  "postStartCommand": "bash start.sh",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "ERP 網頁",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
